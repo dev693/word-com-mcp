@@ -58,7 +58,8 @@ public static class TextSanitizer
             return true;
         }
 
-        // Drop C0 controls (below space) and the DEL / C1 range.
-        return ch >= ' ' && ch != '\x7f';
+        // Drop every control char: C0 (U+0000–U+001F), DEL (U+007F), and C1 (U+0080–U+009F).
+        // char.IsControl covers all three ranges; \t \r \n were already allowed above.
+        return !char.IsControl(ch);
     }
 }

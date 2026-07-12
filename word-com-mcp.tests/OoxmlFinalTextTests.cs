@@ -36,6 +36,19 @@ public class OoxmlFinalTextTests
     }
 
     [Fact]
+    public void GetFinalTextFromPackage_PreservesTabsAndLineBreaks()
+    {
+        // Arrange — a paragraph "A" <tab> "B" <break> "C" (text-equivalent OOXML elements).
+        var bytes = FixtureBuilder.BuildTabBreakSample();
+
+        // Act
+        var finalText = OoxmlFinalText.GetFinalTextFromPackage(bytes);
+
+        // Assert — w:tab and w:br must survive, not collapse to "ABC".
+        Assert.Equal("A\tB\nC", finalText);
+    }
+
+    [Fact]
     public void GetFinalTextFromPackage_DoesNotMutateTheSourceBytes()
     {
         // Arrange

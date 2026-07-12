@@ -79,6 +79,30 @@ public static class FixtureBuilder
         return doc.ToFlatOpcString();
     }
 
+    /// <summary>
+    /// A paragraph exercising OOXML text-equivalent elements: <c>"A"</c>, <c>&lt;w:tab/&gt;</c>,
+    /// <c>"B"</c>, <c>&lt;w:br/&gt;</c>, <c>"C"</c>. Final text must be <c>"A\tB\nC"</c>.
+    /// </summary>
+    public static byte[] BuildTabBreakSample()
+    {
+        using var stream = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        {
+            var mainPart = doc.AddMainDocumentPart();
+            var paragraph = new Paragraph(
+                PlainRun("A"),
+                new Run(new TabChar()),
+                PlainRun("B"),
+                new Run(new Break()),
+                PlainRun("C"));
+
+            mainPart.Document = new Document(new Body(paragraph, new SectionProperties()));
+            mainPart.Document.Save();
+        }
+
+        return stream.ToArray();
+    }
+
     /// <summary>Write the German fixture to <paramref name="path"/> for the live Word smoke test.</summary>
     public static void WriteGermanFixture(string path) => File.WriteAllBytes(path, BuildGermanFixture());
 

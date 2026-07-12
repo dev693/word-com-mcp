@@ -128,12 +128,36 @@ public static class OoxmlFinalText
             }
 
             first = false;
-            foreach (var text in paragraph.Descendants<Text>())
-            {
-                builder.Append(text.Text);
-            }
+            AppendParagraphContent(paragraph, builder);
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Append a paragraph's run content in document order, mapping OOXML text-equivalent
+    /// elements to their characters so tabs and soft breaks survive (not just <c>w:t</c>).
+    /// </summary>
+    private static void AppendParagraphContent(Paragraph paragraph, StringBuilder builder)
+    {
+        foreach (var element in paragraph.Descendants())
+        {
+            switch (element)
+            {
+                case Text text:
+                    builder.Append(text.Text);
+                    break;
+                case TabChar:
+                    builder.Append('\t');
+                    break;
+                case Break:
+                case CarriageReturn:
+                    builder.Append('\n');
+                    break;
+                case NoBreakHyphen:
+                    builder.Append('-');
+                    break;
+            }
+        }
     }
 }
