@@ -103,8 +103,67 @@ public static class FixtureBuilder
         return stream.ToArray();
     }
 
+    /// <summary>
+    /// A richer German fixture exercising every read path: a Heading 2, direct bold/italic runs,
+    /// a <c>Code</c> character-styled span, a custom <c>Hervorhebung</c> character span, a custom
+    /// <c>Merksatz</c> paragraph style, and a two-item bullet list (styled <c>Listenabsatz</c>).
+    /// </summary>
+    public static byte[] BuildRichFixture()
+    {
+        using var stream = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        {
+            var mainPart = doc.AddMainDocumentPart();
+            AddRichStyles(mainPart);
+
+            var body = new Body(
+                Heading("Überschrift 2", "Kapitel Eins"),
+                new Paragraph(
+                    new ParagraphProperties(new ParagraphStyleId { Val = "Standard" }),
+                    PlainRun("Ein "),
+                    FormattedRun("wichtiger", new Bold()),
+                    PlainRun(" und "),
+                    FormattedRun("kursiver", new Italic()),
+                    PlainRun(" Text.")),
+                new Paragraph(
+                    new ParagraphProperties(new ParagraphStyleId { Val = "Standard" }),
+                    PlainRun("Siehe "),
+                    FormattedRun("config.json", new RunStyle { Val = "Code" }),
+                    PlainRun(" Datei.")),
+                new Paragraph(
+                    new ParagraphProperties(new ParagraphStyleId { Val = "Standard" }),
+                    PlainRun("Ein "),
+                    FormattedRun("hervorgehobenes", new RunStyle { Val = "Hervorhebung" }),
+                    PlainRun(" Wort.")),
+                Normal("Merksatz", "Wichtiger Merksatz."),
+                Normal("Listenabsatz", "Erster Punkt"),
+                Normal("Listenabsatz", "Zweiter Punkt"),
+                new SectionProperties());
+            mainPart.Document = new Document(body);
+            mainPart.Document.Save();
+        }
+
+        return stream.ToArray();
+    }
+
     /// <summary>Write the German fixture to <paramref name="path"/> for the live Word smoke test.</summary>
     public static void WriteGermanFixture(string path) => File.WriteAllBytes(path, BuildGermanFixture());
+
+    private static Run FormattedRun(string text, params OpenXmlElement[] properties) =>
+        new(new RunProperties(properties), new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+
+    private static void AddRichStyles(MainDocumentPart mainPart)
+    {
+        var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
+        stylesPart.Styles = new Styles(
+            ParagraphStyle("Standard", "Standard", isDefault: true),
+            ParagraphStyle("Überschrift 2", "Überschrift 2"),
+            ParagraphStyle("Listenabsatz", "Listenabsatz"),
+            ParagraphStyle("Merksatz", "Merksatz"),
+            CharacterStyle("Code", "Code"),
+            CharacterStyle("Hervorhebung", "Hervorhebung"));
+        stylesPart.Styles.Save();
+    }
 
     private static Run PlainRun(string text) =>
         new(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
