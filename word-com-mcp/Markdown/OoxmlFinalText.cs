@@ -60,60 +60,8 @@ public static class OoxmlFinalText
             return string.Empty;
         }
 
-        AcceptAllRevisions(body);
+        OoxmlRevisions.Apply(body, RevisionView.Final);
         return ReadParagraphText(body);
-    }
-
-    /// <summary>
-    /// Accept every tracked revision in <paramref name="root"/> in memory: drop deletions
-    /// and move-froms, unwrap insertions and move-tos, and remove formatting-change markers.
-    /// </summary>
-    private static void AcceptAllRevisions(OpenXmlElement root)
-    {
-        // Deletions and moved-away content are removed outright (the text stays gone).
-        RemoveAll(root.Descendants<Deleted>());
-        RemoveAll(root.Descendants<DeletedRun>());
-        RemoveAll(root.Descendants<DeletedMathControl>());
-        RemoveAll(root.Descendants<MoveFrom>());
-        RemoveAll(root.Descendants<MoveFromRun>());
-
-        // Insertions and moved-in content are promoted out of their revision wrapper.
-        Unwrap(root.Descendants<InsertedRun>());
-        Unwrap(root.Descendants<Inserted>());
-        Unwrap(root.Descendants<MoveToRun>());
-        Unwrap(root.Descendants<MoveTo>());
-
-        // Formatting/property changes: remove the change marker, keep the applied formatting.
-        RemoveAll(root.Descendants<ParagraphPropertiesChange>());
-        RemoveAll(root.Descendants<RunPropertiesChange>());
-        RemoveAll(root.Descendants<SectionPropertiesChange>());
-        RemoveAll(root.Descendants<TablePropertiesChange>());
-        RemoveAll(root.Descendants<TableRowPropertiesChange>());
-        RemoveAll(root.Descendants<TableCellPropertiesChange>());
-        RemoveAll(root.Descendants<TablePropertyExceptionsChange>());
-        RemoveAll(root.Descendants<NumberingChange>());
-    }
-
-    private static void RemoveAll(IEnumerable<OpenXmlElement> elements)
-    {
-        foreach (var element in elements.ToList())
-        {
-            element.Remove();
-        }
-    }
-
-    private static void Unwrap(IEnumerable<OpenXmlElement> wrappers)
-    {
-        foreach (var wrapper in wrappers.ToList())
-        {
-            // Move each child up in front of the wrapper, then drop the (now empty) wrapper.
-            foreach (var child in wrapper.ChildElements.ToList())
-            {
-                wrapper.InsertBeforeSelf(child.CloneNode(true));
-            }
-
-            wrapper.Remove();
-        }
     }
 
     private static string ReadParagraphText(Body body)
