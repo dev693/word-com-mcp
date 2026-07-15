@@ -149,6 +149,9 @@ public static class FixtureBuilder
     /// <summary>Write the German fixture to <paramref name="path"/> for the live Word smoke test.</summary>
     public static void WriteGermanFixture(string path) => File.WriteAllBytes(path, BuildGermanFixture());
 
+    /// <summary>Write the rich German style/list fixture for Tier-2 live tests.</summary>
+    public static void WriteRichFixture(string path) => File.WriteAllBytes(path, BuildRichFixture());
+
     private static Run FormattedRun(string text, params OpenXmlElement[] properties) =>
         new(new RunProperties(properties), new Text(text) { Space = SpaceProcessingModeValues.Preserve });
 

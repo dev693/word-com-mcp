@@ -53,6 +53,18 @@ public class ToolSurfaceTests
     [InlineData("word_live_save")]
     [InlineData("word_live_save_as")]
     [InlineData("word_live_get_info")]
+    [InlineData("word_live_set_block_style")]
+    [InlineData("word_live_apply_markdown")]
+    [InlineData("word_live_add_comment")]
+    [InlineData("word_live_get_comments")]
+    [InlineData("word_live_reply_to_comment")]
+    [InlineData("word_live_resolve_comment")]
+    [InlineData("word_live_delete_comment")]
+    [InlineData("word_live_list_revisions")]
+    [InlineData("word_live_list_open")]
+    [InlineData("word_live_list_headings")]
+    [InlineData("word_live_goto")]
+    [InlineData("word_live_set_core_properties")]
     public void AllTierOneTools_AreDiscoverable(string expected)
     {
         // Act / Assert

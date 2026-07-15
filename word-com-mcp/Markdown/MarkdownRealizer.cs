@@ -77,6 +77,47 @@ public static class MarkdownRealizer
         return context.Warnings;
     }
 
+    /// <summary>
+    /// Apply the paragraph and inline formatting represented by a single Markdown block without
+    /// replacing its text. Used by Tier-2 style-only diffs so Word records a formatting revision.
+    /// </summary>
+    public static IReadOnlyList<string> ApplyBlockFormatting(
+        Word.Document doc,
+        Word.Range target,
+        MarkdownBlock block,
+        StyleMap styleMap)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(block);
+        ArgumentNullException.ThrowIfNull(styleMap);
+
+        var context = new RealizeContext(doc, styleMap);
+        var units = context.BuildUnits(new MarkdownDocument([block]));
+        if (units.Count != 1)
+        {
+            return ["block formatting could not be mapped to one paragraph"];
+        }
+
+        var unit = units[0];
+        var content = doc.Range(target.Start, Math.Max(target.Start, target.End - 1));
+        context.ApplyParagraphStyle(content, unit);
+
+        // Remove prior inline formatting/hyperlinks, then realize the requested spans in place.
+        var hyperlinks = content.Hyperlinks;
+        for (var i = hyperlinks.Count; i >= 1; i--)
+        {
+            hyperlinks[i].Delete();
+        }
+
+        content.Style = doc.Styles[WdBuiltinStyle.wdStyleDefaultParagraphFont];
+        content.Font.Bold = 0;
+        content.Font.Italic = 0;
+        content.Font.Underline = WdUnderline.wdUnderlineNone;
+        context.ApplySpans(content.Start, unit.Spans);
+        return context.Warnings;
+    }
+
     private enum SpanKind
     {
         Bold,
@@ -229,7 +270,7 @@ public static class MarkdownRealizer
             cursor.Start = cursor.End;
         }
 
-        private void ApplyParagraphStyle(Word.Range range, ParaUnit unit)
+        public void ApplyParagraphStyle(Word.Range range, ParaUnit unit)
         {
             if (unit.BuiltIn is WdBuiltinStyle builtIn)
             {

@@ -13,6 +13,30 @@ namespace WordComMcp.Infrastructure;
 /// </summary>
 public static class ToolExecution
 {
+    /// <summary>Run an application-only tool such as <c>list_open</c> on the STA thread.</summary>
+    public static async Task<string> RunApplicationAsync(
+        StaDispatcher dispatcher,
+        WordConnection connection,
+        Func<Word.Application, string> body)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(body);
+
+        try
+        {
+            return await dispatcher.RunOnStaAsync(() => body(connection.GetWordApp()));
+        }
+        catch (WordConnectionException ex)
+        {
+            return McpResult.Err(ex.ErrorCode);
+        }
+        catch (Exception ex)
+        {
+            return McpResult.Err(ex.Message);
+        }
+    }
+
     /// <summary>
     /// Resolve the app + document and run <paramref name="body"/> on the STA thread.
     /// <paramref name="body"/> returns a serialized <see cref="McpResult"/> envelope.
