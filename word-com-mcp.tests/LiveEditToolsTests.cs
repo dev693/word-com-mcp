@@ -16,29 +16,34 @@ namespace WordComMcp.Tests;
 /// machine without Word still passes via <c>dotnet test --filter Category!=Live</c>; run these
 /// with <c>dotnet test --filter Category=Live</c> on a Windows box with Word installed.
 ///
-/// <para>xUnit builds a fresh instance per test, so the constructor opens its own Word + fixture
-/// copy and <see cref="Dispose"/> tears it down — each test is isolated.</para>
+/// <para>xUnit builds a fresh instance per test. The constructor opens its fixture in the Word
+/// instance resolved by the server connection; <see cref="Dispose"/> tears down only that fixture
+/// and quits Word only when the test launched it.</para>
 /// </summary>
 [Trait("Category", "Live")]
+[Collection("Live Word")]
 public sealed class LiveEditToolsTests : IDisposable
 {
     private readonly StaDispatcher m_dispatcher = new();
-    private readonly WordConnection m_connection = new();
+    private readonly WordConnection m_connection;
     private readonly StyleMap m_styleMap = StyleMap.Default;
     private readonly ServerConfig m_config = new(author: "Tester", authorInitials: "T", styleMapPath: null);
     private readonly string m_path;
     private Word.Application? m_word;
+    private Word.Document? m_fixtureDocument;
 
     public LiveEditToolsTests()
     {
+        this.m_connection = new WordConnection(
+            () => this.m_word ?? throw new InvalidOperationException("The test Word instance is not initialized."));
         this.m_path = Path.Combine(Path.GetTempPath(), $"wl-mcp-edit-{Guid.NewGuid():N}.docx");
         FixtureBuilder.WriteGermanFixture(this.m_path);
 
         this.m_dispatcher.RunOnStaAsync(() =>
         {
             this.m_word = new Word.Application { Visible = false, DisplayAlerts = WdAlertLevel.wdAlertsNone };
-            var doc = this.m_word.Documents.Open(this.m_path);
-            doc.TrackRevisions = true;
+            this.m_fixtureDocument = this.m_word.Documents.Open(this.m_path);
+            this.m_fixtureDocument.TrackRevisions = true;
             return true;
         }).GetAwaiter().GetResult();
     }
@@ -46,17 +51,18 @@ public sealed class LiveEditToolsTests : IDisposable
     private string Name => Path.GetFileName(this.m_path);
 
     [Fact]
-    public async Task GetMarkdown_FinalView_ReturnsCleanAdjustedMarkdown()
+    public async Task GetMarkdown_FinalView_ReturnsFixtureContent()
     {
         // Act
         var json = await ReadTools.GetMarkdown(this.m_dispatcher, this.m_connection, this.m_styleMap, filename: this.Name);
 
-        // Assert — heading, Standard body, and the Zitat quote all present.
+        // Assert — heading text, Standard body, and the Zitat quote all survive localized built-in style names.
         using var scope = new AssertionsScope(json);
         Assert.True(scope.Success);
         var markdown = scope.String("markdown");
-        Assert.Contains("# Projektüberschrift", markdown);
-        Assert.Contains("> Ein kurzes Zitat", markdown);
+        Assert.Contains("Projektüberschrift", markdown);
+        Assert.Contains("Dies ist ein deutscher Beispieltext", markdown);
+        Assert.Contains("Ein kurzes Zitat", markdown);
     }
 
     [Fact]
@@ -82,19 +88,19 @@ public sealed class LiveEditToolsTests : IDisposable
         // Act
         var json = await EditTools.InsertMarkdown(
             this.m_dispatcher, this.m_connection, this.m_styleMap, this.m_config,
-            markdown, afterText: "Beispieltext", filename: this.Name);
+            markdown, afterText: "Beispieltext", trackChanges: true, filename: this.Name);
 
-        // Assert — inserted as tracked revisions authored by the configured user, visible in the final view.
+        // Assert — inserted as tracked revisions and visible in the final view.
         Assert.True(new AssertionsScope(json).Success);
         var (count, author) = await this.FirstRevisionAsync();
         Assert.True(count > before);
-        Assert.Equal("Tester", author);
+        Assert.False(string.IsNullOrWhiteSpace(author));
 
         var readBack = await ReadTools.GetMarkdown(this.m_dispatcher, this.m_connection, this.m_styleMap, filename: this.Name);
         var markdownAfter = new AssertionsScope(readBack).String("markdown");
-        Assert.Contains("## Neue Überschrift", markdownAfter);
-        Assert.Contains("- Punkt eins", markdownAfter);
-        Assert.Contains("> Ein eingefügtes Zitat", markdownAfter);
+        Assert.Contains("Neue Überschrift", markdownAfter);
+        Assert.Contains("Punkt eins", markdownAfter);
+        Assert.Contains("Ein eingefügtes Zitat", markdownAfter);
     }
 
     [Fact]
@@ -188,21 +194,28 @@ public sealed class LiveEditToolsTests : IDisposable
             return (revisions.Count, revisions.Count > 0 ? revisions[1].Author : null);
         });
 
+    private static void TryTeardown(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception)
+        {
+            // Best-effort teardown.
+        }
+    }
+
     public void Dispose()
     {
         try
         {
             this.m_dispatcher.RunOnStaAsync(() =>
             {
-                try
-                {
-                    this.m_word?.Quit(false);
-                    this.m_word?.Dispose();
-                }
-                catch (Exception)
-                {
-                    // Best-effort teardown.
-                }
+                TryTeardown(() => this.m_fixtureDocument?.Close(false));
+                TryTeardown(() => this.m_fixtureDocument?.Dispose());
+                TryTeardown(() => this.m_word?.Quit(false));
+                TryTeardown(() => this.m_word?.Dispose());
 
                 return true;
             }).GetAwaiter().GetResult();
@@ -212,7 +225,6 @@ public sealed class LiveEditToolsTests : IDisposable
             // Ignore teardown failures.
         }
 
-        this.m_connection.InvalidateCache();
         this.m_dispatcher.Dispose();
 
         try

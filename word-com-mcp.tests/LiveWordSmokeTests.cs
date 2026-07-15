@@ -5,12 +5,18 @@ using Xunit;
 
 namespace WordComMcp.Tests;
 
+[CollectionDefinition("Live Word", DisableParallelization = true)]
+public sealed class LiveWordCollection
+{
+}
+
 /// <summary>
 /// Live smoke test against a running Word instance (issue 0.11). Excluded from the default
 /// run (<c>dotnet test --filter Category!=Live</c>); run explicitly on a machine with Word:
 /// <c>dotnet test --filter Category=Live</c>. All COM work happens on the shared STA thread.
 /// </summary>
 [Trait("Category", "Live")]
+[Collection("Live Word")]
 public class LiveWordSmokeTests
 {
     [Fact]

@@ -37,7 +37,22 @@ public sealed class WordConnection
     private const int RpcSServerUnavailable = unchecked((int)0x800706BA);
     private const int CoEObjNotConnected = unchecked((int)0x800401FD);
 
+    private readonly Func<Word.Application>? m_appResolver;
     private Word.Application? m_cachedApp;
+
+    public WordConnection()
+    {
+    }
+
+    /// <summary>
+    /// Create a connection that resolves a caller-owned Word application. Intended for live tests
+    /// that must remain isolated from other running Word instances.
+    /// </summary>
+    public WordConnection(Func<Word.Application> appResolver)
+    {
+        ArgumentNullException.ThrowIfNull(appResolver);
+        this.m_appResolver = appResolver;
+    }
 
     /// <summary>
     /// Resolve a running Word application that has at least one document, self-healing
@@ -45,6 +60,11 @@ public sealed class WordConnection
     /// </summary>
     public Word.Application GetWordApp()
     {
+        if (this.m_appResolver is not null)
+        {
+            return this.m_appResolver();
+        }
+
         if (this.m_cachedApp is not null)
         {
             if (this.IsCacheAlive())
@@ -109,6 +129,11 @@ public sealed class WordConnection
     /// <summary>Drop the cached application (e.g. after a detected disconnect or on shutdown).</summary>
     public void InvalidateCache()
     {
+        if (this.m_appResolver is not null)
+        {
+            return;
+        }
+
         var cached = this.m_cachedApp;
         this.m_cachedApp = null;
         cached?.Dispose();
